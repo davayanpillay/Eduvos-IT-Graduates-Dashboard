@@ -1,0 +1,12 @@
+name: EduvosITGraduatesApp
+title: EduvosITGraduatesApp
+username: davayanpillay
+account: davayanpillay
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 14234164
+bundleId: 9936465
+url: https://davayanpillay.shinyapps.io/EduvosITGraduatesApp/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
