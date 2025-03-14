@@ -1,0 +1,172 @@
+#Importing Libraries
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+#Question 1 
+#Loading the data set 
+df <- read.csv("graduate_survey.csv")
+
+#Cleaning and Preprocessing steps:
+
+#1.a Selecting relevant columns, the relevant columns were listed 
+#as key variables in the scenario 
+
+df <- df %>%
+  select (Campus, StudyField, Branch, Role, EduLevel, ProgLang, Databases, 
+          Platform, WebFramework, Industry, AISearch, AITool, Employment)
+
+#1.b Missing value treatment 
+
+# First I needed to convert blank values and spaces to NA
+df[df==""]<-NA
+df[df==" "]<-NA
+
+# Remove rows with missing values using the omit function
+df <- na.omit(df)
+
+#1.c Standardizing Categorical Variables
+#First I will treat the campus variable 
+#The Durban Campus was listed as an issue but I also noticed that 
+#Nelson Mandela and Mbombela had similar issues so those were treated as well
+
+df <- df %>%
+  mutate(Campus = case_when(
+    Campus %in% c("Durban Campus", "Umhlanga Campus") ~ "Durban Campus",
+    Campus %in% c("Nelson Mandela Bay Campus", "Port Elizabeth Campus") ~ "Nelson Mandela Bay Campus",
+    Campus %in% c("Nelspruit Campus", "Mbombela Campus") ~ "Mbombela Campus",
+    TRUE ~ Campus
+  ))
+
+#1.d Subsetting data 
+top_camps <- df %>%
+  count(Campus, sort = TRUE) %>% #Used to count how many times each campus name appears 
+  top_n(5, n) %>% # pulling the top 5 results 
+  pull(Campus)
+
+df <- df %>% filter(Campus %in% top_camps) # Subsetting the dataframe to only include entries from top 5 campuses 
+
+#Next to improve the readiness of the dataset I decided convert character columns to factors
+
+df <- df %>%
+  mutate(across(c(Campus, StudyField, Branch, Role, EduLevel, Industry, Employment), as.factor))
+
+# I noticed that this entry in the AISearch attribute was an outlier so I decided to remove it 
+df <- df %>%
+  filter(AISearch != "Using AI Stack Overflow could produce better results for the queries.")
+
+
+
+#I decided to now save this df as a new .csv file that the Shiny App can use since it is cleaned and ready 
+# Save the preprocessed data to a new CSV file
+write.csv(df, "preprocessed_graduate_survey.csv", row.names = FALSE)
+
+#Question 2
+
+#2.1.i
+
+# I created a funcion that can be used to count different entries within each column
+count_tools <- function(df, column_name) {
+  df %>%
+    separate_rows({{ column_name }}, sep = ";") %>%  # Split by ";"
+    group_by({{ column_name }}) %>% 
+    summarise(count = n()) %>%
+    arrange(desc(count))
+}
+
+# Top Programming Languages Plot
+top_languages <- count_tools(df, ProgLang)
+ggplot(top_languages, aes(x = reorder(ProgLang, count), y = count)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() + #To easily read each langauge 
+  labs(title = "Top Programming Languages Used by Graduates", x = "Programming Language", y = "Count")
+
+# Top Databases Plot
+top_databases <- count_tools(df, Databases)
+ggplot(top_databases, aes(x = reorder(Databases, count), y = count)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  coord_flip() + #To easily read each database name
+  labs(title = "Top Databases Used by Graduates", x = "Databases", y = "Count")
+
+# Top Platforms Plot
+top_platforms <- count_tools(df, Platform)
+ggplot(top_platforms, aes(x = reorder(Platform, count), y = count)) +
+  geom_bar(stat = "identity", fill = "red") +
+  coord_flip() + #To easily read each Platform name
+  labs(title = "Top Platforms Used by Graduates", x = "Platforms", y = "Count")
+
+# Top Webframeworks Plot
+top_frameworks <- count_tools(df, WebFramework)
+ggplot(top_frameworks, aes(x = reorder(WebFramework, count), y = count)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  coord_flip() + #To easily read each Framework name
+  labs(title = "Top WebFrameworks Used by Graduates", x = "WebFrameworks", y = "Count")
+
+
+# Top AISearch Plot
+top_AIsearch <- count_tools(df, AISearch)
+ggplot(top_AIsearch, aes(x = reorder(AISearch, count), y = count)) +
+  geom_bar(stat = "identity", fill = "green") +
+  coord_flip() + #To easily read each AISearch name
+  labs(title = "Top AISearch Used by Graduates", x = "AISearch", y = "Count")
+
+# Top AITool Plot
+
+top_AItool <- count_tools(df, AITool)
+ggplot(top_AItool, aes(x = reorder(AITool, count), y = count)) +
+  geom_bar(stat = "identity", fill = "pink") +
+  coord_flip() + #To easily read each AITool name
+  labs(title = "Top AITool Used by Graduates", x = "AITool", y = "Count")
+
+
+#Q2.1.ii
+# I decided to split industry column to count different occurrences 
+df_industry_popular <- df %>%
+  separate_rows(Industry, sep = ";") %>% # Split by ";"
+  count(StudyField, Industry) %>% 
+  group_by(StudyField) %>%
+  top_n(5, wt = n)  # Showing the top 5 industries for each study field
+
+# Plotting my findings 
+ggplot(df_industry_popular, aes(x = reorder(Industry, n), y = n, fill = StudyField)) +
+  geom_bar(stat = "identity") +
+  coord_flip() + # To easily read each industry name
+  labs(title = "Popular Industries for Relevant Study Field",
+       x = "Industry", y = "Count") 
+
+
+#Q2.1iii
+
+# Count top job roles
+df_top_roles <- df %>%
+  count(StudyField, Role) %>%
+  group_by(StudyField) %>%
+  top_n(5, wt = n)  # Show top 5 jobs for each study field
+
+# Plot top roles per StudyField
+ggplot(df_top_roles, aes(x = reorder(Role, n), y = n, fill = StudyField)) +
+  geom_bar(stat = "identity") +
+  coord_flip() + # To easily read each Role
+  labs(title = "Top Job Roles for Graduates", x = "Job Role", y = "Count") 
+
+#Q2.1iv
+#I needed to standardize the employment column
+df <- df %>%
+  mutate(Employment = case_when(
+    grepl("not employed|unemployed", Employment, ignore.case = TRUE) ~ "Not Employed",
+    grepl("employed", Employment, ignore.case = TRUE) ~ "Employed",
+    TRUE ~ "Other"  
+  ))
+#Function to determine the employment rate per study field
+df_employment_rate <- df %>%
+  count(StudyField, Employment) %>%
+  group_by(StudyField) %>%
+  mutate(Percentage = (n / sum(n)) * 100)  # Employment rate per study field
+
+#Plotting the employment rate per study field
+ggplot(df_employment_rate, aes(x = StudyField, y = Percentage, fill = Employment)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Employment Rate per Study Field",
+       x = "Study Field", y = "Employment Rate") 
+
+
